@@ -184,9 +184,6 @@ public class Domain {
                         if (distance >= DOMAIN_RADIUS - 1 && distance <= DOMAIN_RADIUS + 1) {
                             BlockPos pos = domainCenter.add(x, y, z);
                             world.setBlockState(pos, Blocks.OBSIDIAN.getDefaultState());
-
-                            world.spawnParticles(ParticleTypes.PORTAL, pos.getX() + 0.5,
-                                    pos.getY() + 0.5, pos.getZ() + 0.5, 3, 0.3, 0.3, 0.3, 0.1);
                         }
                     }
                 }
@@ -212,8 +209,6 @@ public class Domain {
 
                     // Check if this block is within the current build radius but wasn't built
                     // before
-                    // Check if this block is within the current build radius but wasn't built
-                    // before
                     if (distance <= targetRadius && distance > currentPlatformRadius - 1
                             && distance < DOMAIN_RADIUS - 2) {
                         BlockPos pos = new BlockPos(domainCenter.getX() + x, platformY,
@@ -225,10 +220,6 @@ public class Domain {
                         }
 
                         world.setBlockState(pos, Blocks.BLACK_CONCRETE.getDefaultState());
-
-                        // Particle effect for building
-                        world.spawnParticles(ParticleTypes.SMOKE, pos.getX() + 0.5, pos.getY() + 1,
-                                pos.getZ() + 0.5, 3, 0.3, 0.1, 0.3, 0.05);
                     }
                 }
             }
@@ -253,9 +244,6 @@ public class Domain {
                             BlockPos pos = domainCenter.add(x, y, z);
                             if (originalBlocks.containsKey(pos)) {
                                 world.setBlockState(pos, originalBlocks.get(pos));
-
-                                world.spawnParticles(ParticleTypes.SMOKE, pos.getX() + 0.5,
-                                        pos.getY() + 0.5, pos.getZ() + 0.5, 5, 0.3, 0.3, 0.3, 0.1);
                             }
                         }
                     }
@@ -280,10 +268,6 @@ public class Domain {
 
                         if (originalPlatformBlocks.containsKey(pos)) {
                             world.setBlockState(pos, originalPlatformBlocks.get(pos));
-
-                            // Particle effect for breaking
-                            world.spawnParticles(ParticleTypes.SMOKE, pos.getX() + 0.5,
-                                    pos.getY() + 1, pos.getZ() + 0.5, 3, 0.3, 0.1, 0.3, 0.05);
                         }
                     }
                 }
@@ -321,33 +305,17 @@ public class Domain {
     }
 
     private void playLightSpeedAnimation() {
-        for (int i = 0; i < 50; i++) {
-            double angle = (System.currentTimeMillis() / 10.0 + i * 7.2) % 360;
+        // Simple end rod effects during activation
+        for (int i = 0; i < 20; i++) {
+            double angle = (System.currentTimeMillis() / 20.0 + i * 18) % 360;
             double radians = Math.toRadians(angle);
-            double radius = 15 + Math.sin(System.currentTimeMillis() / 100.0) * 5;
+            double radius = 15;
 
             double x = domainCenter.getX() + Math.cos(radians) * radius;
-            double y = domainCenter.getY() + Math.sin(System.currentTimeMillis() / 50.0 + i) * 10;
+            double y = platformY + 5;
             double z = domainCenter.getZ() + Math.sin(radians) * radius;
 
-            world.spawnParticles(ParticleTypes.END_ROD, x, y, z, 1, 0, 0, 0, 0.3);
-            world.spawnParticles(ParticleTypes.SOUL_FIRE_FLAME, x, y, z, 1, 0, 0, 0, 0.2);
-            world.spawnParticles(ParticleTypes.REVERSE_PORTAL, x, y, z, 1, 0.1, 0.1, 0.1, 0.1);
-        }
-
-        double spiralTime = (System.currentTimeMillis() - (activationTime - 1000)) / 1000.0;
-        for (int i = 0; i < 20; i++) {
-            double spiralAngle = spiralTime * 720 + i * 18;
-            double spiralRadius = 20 - spiralTime * 15;
-            if (spiralRadius > 0) {
-                double x =
-                        domainCenter.getX() + Math.cos(Math.toRadians(spiralAngle)) * spiralRadius;
-                double y = domainCenter.getY() + i - 10;
-                double z =
-                        domainCenter.getZ() + Math.sin(Math.toRadians(spiralAngle)) * spiralRadius;
-
-                world.spawnParticles(ParticleTypes.DRAGON_BREATH, x, y, z, 1, 0, 0, 0, 0.1);
-            }
+            world.spawnParticles(ParticleTypes.END_ROD, x, y, z, 1, 0, 0, 0, 0.1);
         }
     }
 
@@ -396,12 +364,12 @@ public class Domain {
                 domainCenter.getZ() - DOMAIN_RADIUS, domainCenter.getX() + DOMAIN_RADIUS,
                 platformY + DOMAIN_RADIUS, domainCenter.getZ() + DOMAIN_RADIUS);
 
-        // Teleport entities 2 blocks above the platform
-        double elevatedLevel = platformY + 3;
+        // Teleport entities so their feet are on the platform
+        double platformLevel = platformY + 1; // +1 so they stand ON the platform, not in it
 
         // First, teleport the caster
         Vec3d casterPos = caster.getPos();
-        caster.setPosition(casterPos.x, elevatedLevel, casterPos.z);
+        caster.setPosition(casterPos.x, platformLevel, casterPos.z);
 
         // Then teleport other entities
         world.getEntitiesByClass(LivingEntity.class, area, e -> e != caster).forEach(e -> {
@@ -410,8 +378,8 @@ public class Domain {
             if (isInsideDomain(entityPos)) {
                 trapped.put(e.getUuid(), entityPos);
 
-                // Teleport 2 blocks above platform
-                e.setPosition(entityPos.x, elevatedLevel, entityPos.z);
+                // Teleport with feet on platform
+                e.setPosition(entityPos.x, platformLevel, entityPos.z);
 
                 if (e instanceof MobEntity mob) {
                     NbtCompound nbt = new NbtCompound();
@@ -435,8 +403,8 @@ public class Domain {
             }
         });
 
-        System.out.println("Trapped " + trapped.size() + " entities 2 blocks above platform at Y="
-                + elevatedLevel);
+        System.out.println(
+                "Trapped " + trapped.size() + " entities on platform at Y=" + platformLevel);
     }
 
     private void maintainStunEffects() {
@@ -466,65 +434,66 @@ public class Domain {
     }
 
     private void playVoidSpaceEffects() {
-        // Create black hole effect on one side (in upper void space only)
-        double blackHoleX = domainCenter.getX() + DOMAIN_RADIUS * 0.7;
-        double blackHoleY = platformY + 15; // Well above the platform
-        double blackHoleZ = domainCenter.getZ();
+        // Moon position and rotation
+        double moonX = domainCenter.getX() + DOMAIN_RADIUS * 0.6;
+        double moonY = platformY + 15;
+        double moonZ = domainCenter.getZ();
 
-        // Black hole particles (only in upper half)
+        // Create rotating moon with end rod particles
+        double moonRotation = (System.currentTimeMillis() % 1000) / 1000.0 * 360;
         for (int i = 0; i < 30; i++) {
-            double angle = (System.currentTimeMillis() / 20.0 + i * 12) % 360;
-            double radius = 8 + Math.sin(System.currentTimeMillis() / 100.0 + i) * 2;
-            double x = blackHoleX + Math.cos(Math.toRadians(angle)) * radius;
-            double y = blackHoleY + Math.sin(Math.toRadians(angle * 2)) * 3;
-            double z = blackHoleZ + Math.sin(Math.toRadians(angle)) * radius;
+            double angle = i * 12 + moonRotation;
+            double radians = Math.toRadians(angle);
 
-            // Only spawn if above platform level
-            if (y > platformY + 1) {
-                world.spawnParticles(ParticleTypes.PORTAL, x, y, z, 1, 0, 0, 0, 0.2);
-                world.spawnParticles(ParticleTypes.REVERSE_PORTAL, x, y, z, 1, 0, 0, 0, 0.1);
-            }
-        }
+            // Create sphere shape for moon
+            for (int j = 0; j < 10; j++) {
+                double verticalAngle = j * 18;
+                double vRadians = Math.toRadians(verticalAngle);
+                double radius = 3 * Math.sin(vRadians);
 
-        // Ink splash effects (only in upper void space)
-        // Ink splash effects (only in upper void space)
-        for (int i = 0; i < 15; i++) {
-            double x = domainCenter.getX() + (Math.random() - 0.5) * DOMAIN_RADIUS * 1.5;
-            double y = platformY + 2 + Math.random() * DOMAIN_RADIUS * 0.8; // Above platform
-            double z = domainCenter.getZ() + (Math.random() - 0.5) * DOMAIN_RADIUS * 1.5;
+                double x = moonX + Math.cos(radians) * radius;
+                double y = moonY + Math.cos(vRadians) * 3;
+                double z = moonZ + Math.sin(radians) * radius;
 
-            // Only spawn if above platform level
-            if (y > platformY + 1) {
-                world.spawnParticles(ParticleTypes.SQUID_INK, x, y, z, 3, 1, 1, 1, 0.1);
-                world.spawnParticles(ParticleTypes.SMOKE, x, y, z, 2, 0.5, 0.5, 0.5, 0.05);
-            }
-        }
-
-        // Stars in the upper void space only
-        for (int i = 0; i < 100; i++) {
-            double theta = Math.random() * Math.PI * 2;
-            double phi = Math.acos(2 * Math.random() - 1);
-            double r = DOMAIN_RADIUS * 0.8 + Math.random() * DOMAIN_RADIUS * 0.4;
-            double x = domainCenter.getX() + r * Math.sin(phi) * Math.cos(theta);
-            double y = platformY + r * Math.sin(phi) * Math.sin(theta);
-            double z = domainCenter.getZ() + r * Math.cos(phi);
-
-            // Only show stars in upper void space (above platform)
-            if (y >= platformY + 3 && Math.random() < 0.3) {
                 world.spawnParticles(ParticleTypes.END_ROD, x, y, z, 1, 0, 0, 0, 0);
             }
         }
 
-        // Floating void energy (upper void space only)
-        for (int i = 0; i < 20; i++) {
-            double x = domainCenter.getX() + (Math.random() - 0.5) * DOMAIN_RADIUS * 1.2;
-            double y = platformY + 3 + Math.random() * DOMAIN_RADIUS * 0.6; // Above platform
-            double z = domainCenter.getZ() + (Math.random() - 0.5) * DOMAIN_RADIUS * 1.2;
+        // End rod particles near the barrier walls
+        for (int i = 0; i < 50; i++) {
+            double angle = Math.random() * 360;
+            double radians = Math.toRadians(angle);
+            double height = platformY + Math.random() * (DOMAIN_RADIUS * 2) - DOMAIN_RADIUS;
 
-            // Only spawn if above platform level
-            if (y > platformY + 2) {
-                world.spawnParticles(ParticleTypes.DRAGON_BREATH, x, y, z, 1, 0.2, 0.2, 0.2, 0.02);
-            }
+            // Place near the inner surface of the barrier
+            double x = domainCenter.getX() + Math.cos(radians) * (DOMAIN_RADIUS - 2);
+            double z = domainCenter.getZ() + Math.sin(radians) * (DOMAIN_RADIUS - 2);
+
+            world.spawnParticles(ParticleTypes.END_ROD, x, height, z, 1, 0, 0, 0, 0);
+        }
+
+        // End rod particles near the ground
+        for (int i = 0; i < 30; i++) {
+            double x = domainCenter.getX() + (Math.random() - 0.5) * (DOMAIN_RADIUS * 2 - 4);
+            double z = domainCenter.getZ() + (Math.random() - 0.5) * (DOMAIN_RADIUS * 2 - 4);
+            double y = platformY + 1 + Math.random() * 2;
+
+            world.spawnParticles(ParticleTypes.END_ROD, x, y, z, 1, 0, 0, 0, 0);
+        }
+
+        // White smoke concentrated near obsidian walls
+        for (int i = 0; i < 40; i++) {
+            double angle = Math.random() * 360;
+            double radians = Math.toRadians(angle);
+            double verticalOffset = (Math.random() - 0.5) * DOMAIN_RADIUS;
+
+            // Place very close to inner obsidian surface
+            double distanceFromCenter = DOMAIN_RADIUS - 1 - Math.random() * 0.5;
+            double x = domainCenter.getX() + Math.cos(radians) * distanceFromCenter;
+            double y = platformY + verticalOffset;
+            double z = domainCenter.getZ() + Math.sin(radians) * distanceFromCenter;
+
+            world.spawnParticles(ParticleTypes.SMOKE, x, y, z, 1, 0.1, 0.1, 0.1, 0);
         }
     }
 
