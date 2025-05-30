@@ -49,7 +49,7 @@ public class Domain {
     private boolean breakingStarted = false;
     private long breakingStartTime;
     private int currentBreakingHeight = DOMAIN_RADIUS;
-    private double currentBreakingPlatformRadius = DOMAIN_RADIUS - 2;
+    private double currentBreakingPlatformRadius = DOMAIN_RADIUS - 1;
 
     // Domain radius
     private static final int DOMAIN_RADIUS = 25;
@@ -111,11 +111,11 @@ public class Domain {
             }
         }
 
-        // Store original blocks where the platform will be built
-        for (int x = -DOMAIN_RADIUS + 2; x <= DOMAIN_RADIUS - 2; x++) {
-            for (int z = -DOMAIN_RADIUS + 2; z <= DOMAIN_RADIUS - 2; z++) {
+        // Store original blocks where the platform will be built (extend to barrier edge)
+        for (int x = -DOMAIN_RADIUS; x <= DOMAIN_RADIUS; x++) {
+            for (int z = -DOMAIN_RADIUS; z <= DOMAIN_RADIUS; z++) {
                 double distance = Math.sqrt(x * x + z * z);
-                if (distance < DOMAIN_RADIUS - 2) {
+                if (distance < DOMAIN_RADIUS) { // Platform extends to just before the barrier
                     BlockPos pos = new BlockPos(domainCenter.getX() + x, platformY,
                             domainCenter.getZ() + z);
                     originalPlatformBlocks.put(pos, world.getBlockState(pos));
@@ -199,7 +199,7 @@ public class Domain {
         long elapsed = currentTime - platformBuildStart;
         double progress = (double) elapsed / 1000.0; // 1 second to build platform
 
-        double targetRadius = progress * (DOMAIN_RADIUS - 2);
+        double targetRadius = progress * (DOMAIN_RADIUS - 1); // Extend to barrier edge
 
         if (targetRadius > currentPlatformRadius) {
             // Build from center outward
@@ -210,7 +210,7 @@ public class Domain {
                     // Check if this block is within the current build radius but wasn't built
                     // before
                     if (distance <= targetRadius && distance > currentPlatformRadius - 1
-                            && distance < DOMAIN_RADIUS - 2) {
+                            && distance < DOMAIN_RADIUS) {
                         BlockPos pos = new BlockPos(domainCenter.getX() + x, platformY,
                                 domainCenter.getZ() + z);
 
@@ -223,7 +223,7 @@ public class Domain {
                     }
                 }
             }
-            currentPlatformRadius = Math.min(targetRadius, DOMAIN_RADIUS - 2);
+            currentPlatformRadius = Math.min(targetRadius, DOMAIN_RADIUS - 1);
         }
     }
 
@@ -253,11 +253,11 @@ public class Domain {
         }
 
         // Break platform from outside to center
-        double targetPlatformRadius = (DOMAIN_RADIUS - 2) * (1 - progress);
+        double targetPlatformRadius = (DOMAIN_RADIUS - 1) * (1 - progress);
 
         if (targetPlatformRadius < currentBreakingPlatformRadius) {
-            for (int x = -DOMAIN_RADIUS + 2; x <= DOMAIN_RADIUS - 2; x++) {
-                for (int z = -DOMAIN_RADIUS + 2; z <= DOMAIN_RADIUS - 2; z++) {
+            for (int x = -DOMAIN_RADIUS; x <= DOMAIN_RADIUS; x++) {
+                for (int z = -DOMAIN_RADIUS; z <= DOMAIN_RADIUS; z++) {
                     double distance = Math.sqrt(x * x + z * z);
 
                     // Check if this block should be removed
@@ -285,11 +285,11 @@ public class Domain {
     }
 
     private void finishPlatform() {
-        // Ensure all platform blocks are placed
-        for (int x = -DOMAIN_RADIUS + 2; x <= DOMAIN_RADIUS - 2; x++) {
-            for (int z = -DOMAIN_RADIUS + 2; z <= DOMAIN_RADIUS - 2; z++) {
+        // Ensure all platform blocks are placed to the edge
+        for (int x = -DOMAIN_RADIUS; x <= DOMAIN_RADIUS; x++) {
+            for (int z = -DOMAIN_RADIUS; z <= DOMAIN_RADIUS; z++) {
                 double distance = Math.sqrt(x * x + z * z);
-                if (distance < DOMAIN_RADIUS - 2) {
+                if (distance < DOMAIN_RADIUS) { // Extend to just before barrier
                     BlockPos pos = new BlockPos(domainCenter.getX() + x, platformY,
                             domainCenter.getZ() + z);
 
@@ -441,22 +441,27 @@ public class Domain {
     }
 
     private void playVoidSpaceEffects() {
-        // Moon position and rotation (lowered by 10 blocks)
+        // Moon position (raised by 5 blocks)
         double moonX = domainCenter.getX() + DOMAIN_RADIUS * 0.6;
-        double moonY = platformY + 5; // Lowered from 15 to 5
+        double moonY = platformY + 10; // Raised from 5 to 10
         double moonZ = domainCenter.getZ();
 
-        // Create white moon using white smoke particles for a more moon-like appearance
-        for (int i = 0; i < 50; i++) {
+        // Pulsating moon effect
+        double pulseTime = System.currentTimeMillis() / 1000.0;
+        double pulseIntensity = 0.5 + 0.5 * Math.sin(pulseTime * Math.PI); // Oscillates between 0
+                                                                           // and 1
+        int particleCount = (int) (30 + 20 * pulseIntensity); // Between 30 and 50 particles
+
+        // Create pulsating moon using end rod particles
+        for (int i = 0; i < particleCount; i++) {
             double theta = Math.random() * Math.PI * 2;
             double phi = Math.acos(2 * Math.random() - 1);
-            double r = 3 + Math.random() * 0.5;
+            double r = 3; // Constant size
 
             double x = moonX + r * Math.sin(phi) * Math.cos(theta);
             double y = moonY + r * Math.sin(phi) * Math.sin(theta);
             double z = moonZ + r * Math.cos(phi);
 
-            // Use white smoke for moon appearance
             world.spawnParticles(ParticleTypes.END_ROD, x, y, z, 1, 0, 0, 0, 0);
         }
 
@@ -492,7 +497,7 @@ public class Domain {
             // Check if position is within platform bounds
             double distance = Math.sqrt((x - domainCenter.getX()) * (x - domainCenter.getX())
                     + (z - domainCenter.getZ()) * (z - domainCenter.getZ()));
-            if (distance < DOMAIN_RADIUS - 2) {
+            if (distance < DOMAIN_RADIUS - 1) {
                 world.spawnParticles(ParticleTypes.PORTAL, x, y, z, 1, 0.1, 0, 0.1, 0);
             }
         }
@@ -527,6 +532,10 @@ public class Domain {
     }
 
     private void finish() {
+        // FIRST: Teleport caster back to original position
+        caster.setPosition(originalCasterPos.x, originalCasterPos.y, originalCasterPos.z);
+
+        // THEN: Restore everything else
         restoreAllBlocks();
         restoreEntities();
 
@@ -564,7 +573,7 @@ public class Domain {
     }
 
     private void restoreEntities() {
-        caster.setPosition(originalCasterPos.x, originalCasterPos.y, originalCasterPos.z);
+        // Note: Caster is already restored in finish() method
 
         trapped.forEach((id, pos) -> {
             Entity ent = world.getEntity(id);
@@ -585,7 +594,6 @@ public class Domain {
             }
         });
 
-        System.out.println(
-                "Restored caster and " + trapped.size() + " entities to original positions");
+        System.out.println("Restored " + trapped.size() + " entities to original positions");
     }
 }
