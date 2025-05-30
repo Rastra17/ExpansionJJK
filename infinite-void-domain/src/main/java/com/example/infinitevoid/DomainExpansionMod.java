@@ -8,7 +8,7 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 public class DomainExpansionMod implements ModInitializer {
     @Override
     public void onInitialize() {
-        // Only register C2S packets on the server
+        // register networking - IMPORTANT: Register C2S packets here
         NetworkHandler.registerC2SPackets();
 
         // register server tick for domain manager

@@ -10,7 +10,7 @@ public class ClientModInit implements ClientModInitializer {
     public void onInitializeClient() {
         ClientKeybinds.register();
         
-        // Only register S2C packets on the client
+        // IMPORTANT: Register S2C packets here
         NetworkHandler.registerS2CPackets();
         
         ClientTickEvents.END_CLIENT_TICK.register(t -> {

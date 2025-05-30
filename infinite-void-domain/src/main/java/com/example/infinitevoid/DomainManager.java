@@ -1,46 +1,79 @@
 // src/main/java/com/example/infinitevoid/DomainManager.java
 package com.example.infinitevoid;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
+import com.example.infinitevoid.network.DomainPayloads;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.Text;
-import net.minecraft.entity.effect.StatusEffects;
-
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 public class DomainManager {
     private static final DomainManager INSTANCE = new DomainManager();
-    public static DomainManager get() { return INSTANCE; }
+
+    public static DomainManager get() {
+        return INSTANCE;
+    }
 
     private final List<Domain> domains = new CopyOnWriteArrayList<>();
+    private final Map<UUID, Boolean> playerDomainStates = new HashMap<>();
 
-    // call when player requests cast
-    public void requestCast(ServerPlayerEntity player) {
-        // Debug: Check current status effects
-        boolean hasMiningFatigue = player.hasStatusEffect(StatusEffects.MINING_FATIGUE);
-        System.out.println("Player " + player.getName().getString() + " has Mining Fatigue: " + hasMiningFatigue);
-        
-        // Check if player can cast (not on cooldown)
-        if (!Domain.canCast(player)) {
-            player.sendMessage(Text.literal("§cYou are still exhausted from your last Domain Expansion!"));
+    // Check cooldown immediately when key is pressed
+    public void checkCooldown(ServerPlayerEntity player) {
+        UUID playerId = player.getUuid();
+        boolean hasActiveDomain = playerDomainStates.getOrDefault(playerId, false);
+
+        // If player has active domain, allow them to break it (no cooldown check
+        // needed)
+        if (hasActiveDomain) {
+            ServerPlayNetworking.send(player, new DomainPayloads.CooldownOkPayload());
             return;
         }
-        
-        // Check if player already has an active domain (including casting ones)
-        boolean hasActiveDomain = domains.stream()
-            .anyMatch(d -> (d.isActive() || !d.isFinished()) && d.getCaster() == player);
-            
+
+        // Only check cooldown if trying to cast a new domain
+        if (!Domain.canCast(player)) {
+            player.sendMessage(
+                    Text.literal("§cYou are still exhausted from your last Domain Expansion!"));
+            return;
+        }
+
+        // If all checks pass, allow holding to proceed
+        ServerPlayNetworking.send(player, new DomainPayloads.CooldownOkPayload());
+    }
+
+    public void requestCast(ServerPlayerEntity player) {
+        // Check cooldown first and show message immediately
+        if (!Domain.canCast(player)) {
+            player.sendMessage(
+                    Text.literal("§cYou are still exhausted from your last Domain Expansion!"));
+            return;
+        }
+
+        UUID playerId = player.getUuid();
+        boolean hasActiveDomain = playerDomainStates.getOrDefault(playerId, false);
+
         if (hasActiveDomain) {
             player.sendMessage(Text.literal("§cYou already have an active Domain Expansion!"));
             return;
         }
-        
+
         domains.add(new Domain(player));
+        playerDomainStates.put(playerId, true);
         player.sendMessage(Text.literal("§dCasting Domain Expansion..."));
     }
 
-    // call when player requests break
     public void requestBreak(ServerPlayerEntity player) {
+        UUID playerId = player.getUuid();
+        boolean hasActiveDomain = playerDomainStates.getOrDefault(playerId, false);
+
+        if (!hasActiveDomain) {
+            player.sendMessage(
+                    Text.literal("§cYou don't have an active Domain Expansion to break!"));
+            return;
+        }
         boolean foundDomain = false;
         for (Domain d : domains) {
             if (d.isActive() && d.getCaster() == player) {
@@ -50,32 +83,35 @@ public class DomainManager {
                 break;
             }
         }
-        
+
         if (!foundDomain) {
-            player.sendMessage(Text.literal("§cYou don't have an active Domain Expansion to break!"));
+            player.sendMessage(
+                    Text.literal("§cYou don't have an active Domain Expansion to break!"));
         }
     }
 
-    // server tick
     public void tick() {
-        // First tick all domains
         for (Domain d : domains) {
             d.tick();
         }
-        
-        // Then remove finished domains using removeIf (safe for CopyOnWriteArrayList)
+
         domains.removeIf(d -> {
             if (d.isFinished()) {
-                // Debug message to confirm removal
-                System.out.println("Removed finished domain for player: " + d.getCaster().getName().getString());
+                UUID casterId = d.getCaster().getUuid();
+                playerDomainStates.put(casterId, false);
+                System.out.println("Removed finished domain for player: "
+                        + d.getCaster().getName().getString());
                 return true;
             }
             return false;
         });
     }
-    
-    // Debug method to check domain count
+
     public int getActiveDomainCount() {
         return domains.size();
+    }
+
+    public boolean hasActiveDomain(ServerPlayerEntity player) {
+        return playerDomainStates.getOrDefault(player.getUuid(), false);
     }
 }

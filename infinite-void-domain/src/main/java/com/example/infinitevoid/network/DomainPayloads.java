@@ -55,4 +55,40 @@ public class DomainPayloads {
             return ID;
         }
     }
+
+    public record DomainDeactivatedPayload() implements CustomPayload {
+        public static final CustomPayload.Id<DomainDeactivatedPayload> ID = 
+            new CustomPayload.Id<>(Identifier.of("infinitevoid", "domain_deactivated"));
+        public static final PacketCodec<PacketByteBuf, DomainDeactivatedPayload> CODEC = 
+            PacketCodec.unit(new DomainDeactivatedPayload());
+
+        @Override
+        public CustomPayload.Id<? extends CustomPayload> getId() {
+            return ID;
+        }
+    }
+
+    public record CheckCooldownPayload() implements CustomPayload {
+        public static final CustomPayload.Id<CheckCooldownPayload> ID = 
+            new CustomPayload.Id<>(Identifier.of("infinitevoid", "check_cooldown"));
+        public static final PacketCodec<PacketByteBuf, CheckCooldownPayload> CODEC = 
+            PacketCodec.unit(new CheckCooldownPayload());
+
+        @Override
+        public CustomPayload.Id<? extends CustomPayload> getId() {
+            return ID;
+        }
+    }
+
+    public record CooldownOkPayload() implements CustomPayload {
+        public static final CustomPayload.Id<CooldownOkPayload> ID = 
+            new CustomPayload.Id<>(Identifier.of("infinitevoid", "cooldown_ok"));
+        public static final PacketCodec<PacketByteBuf, CooldownOkPayload> CODEC = 
+            PacketCodec.unit(new CooldownOkPayload());
+
+        @Override
+        public CustomPayload.Id<? extends CustomPayload> getId() {
+            return ID;
+        }
+    }
 }
