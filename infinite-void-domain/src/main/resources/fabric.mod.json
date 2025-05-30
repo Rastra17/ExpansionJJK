@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "infinitevoid",
+  "name": "Infinite Void Domain",
+  "version": "${version}",
+  "entrypoints": {
+    "main": [
+      "com.example.infinitevoid.DomainExpansionMod"
+    ],
+    "client": [
+      "com.example.infinitevoid.client.ClientModInit"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.11",
+    "fabric": "*",
+    "minecraft": "1.21.1"
+  }
+}
