@@ -1,7 +1,9 @@
 // src/main/java/com/example/infinitevoid/Domain.java
 package com.example.infinitevoid;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import com.example.infinitevoid.network.DomainPayloads;
@@ -166,6 +168,32 @@ public class Domain {
         if (activated && !breaking) {
             maintainStunEffects();
             playVoidSpaceEffects();
+            preventEntitySpawning();
+        }
+    }
+
+    private void preventEntitySpawning() {
+        // Collect entities to remove in a separate list to avoid concurrent modification
+        Box domainBox =
+                new Box(domainCenter.getX() - DOMAIN_RADIUS, domainCenter.getY() - DOMAIN_RADIUS,
+                        domainCenter.getZ() - DOMAIN_RADIUS, domainCenter.getX() + DOMAIN_RADIUS,
+                        domainCenter.getY() + DOMAIN_RADIUS, domainCenter.getZ() + DOMAIN_RADIUS);
+
+        // Create a list to store entities that need to be removed
+        List<LivingEntity> entitiesToRemove = new ArrayList<>();
+
+        world.getEntitiesByClass(LivingEntity.class, domainBox, entity -> {
+            // Check if this entity is not tracked (meaning it spawned after domain activation)
+            if (!trapped.containsKey(entity.getUuid()) && entity != caster
+                    && isInsideDomain(entity.getPos())) {
+                entitiesToRemove.add(entity);
+            }
+            return false;
+        });
+
+        // Now remove the entities after iteration is complete
+        for (LivingEntity entity : entitiesToRemove) {
+            entity.discard();
         }
     }
 
@@ -233,7 +261,6 @@ public class Domain {
 
         // Break barrier from top to bottom
         int targetHeight = DOMAIN_RADIUS - (int) (progress * (DOMAIN_RADIUS * 2 + 1));
-
         if (targetHeight < currentBreakingHeight) {
             for (int x = -DOMAIN_RADIUS; x <= DOMAIN_RADIUS; x++) {
                 for (int z = -DOMAIN_RADIUS; z <= DOMAIN_RADIUS; z++) {
@@ -441,10 +468,15 @@ public class Domain {
     }
 
     private void playVoidSpaceEffects() {
-        // Moon position (raised by 5 blocks)
-        double moonX = domainCenter.getX() + DOMAIN_RADIUS * 0.6;
-        double moonY = platformY + 10; // Raised from 5 to 10
-        double moonZ = domainCenter.getZ();
+        // Moon orbit calculation
+        double orbitTime = System.currentTimeMillis() / 3000.0; // Complete orbit every 3 seconds
+        double orbitAngle = orbitTime * 2 * Math.PI;
+        double orbitRadius = DOMAIN_RADIUS * 0.6;
+
+        // Moon position with orbit
+        double moonX = domainCenter.getX() + Math.cos(orbitAngle) * orbitRadius;
+        double moonY = platformY + 10; // Fixed height
+        double moonZ = domainCenter.getZ() + Math.sin(orbitAngle) * orbitRadius;
 
         // Pulsating moon effect
         double pulseTime = System.currentTimeMillis() / 1000.0;
@@ -452,17 +484,25 @@ public class Domain {
                                                                            // and 1
         int particleCount = (int) (30 + 20 * pulseIntensity); // Between 30 and 50 particles
 
-        // Create pulsating moon using end rod particles
+        // Create hollow pulsating moon using end rod particles
         for (int i = 0; i < particleCount; i++) {
             double theta = Math.random() * Math.PI * 2;
             double phi = Math.acos(2 * Math.random() - 1);
-            double r = 3; // Constant size
+            double r = 3; // Moon radius
 
+            // Create hollow sphere by only placing particles on the surface
             double x = moonX + r * Math.sin(phi) * Math.cos(theta);
             double y = moonY + r * Math.sin(phi) * Math.sin(theta);
             double z = moonZ + r * Math.cos(phi);
 
-            world.spawnParticles(ParticleTypes.END_ROD, x, y, z, 1, 0, 0, 0, 0);
+            // Check distance from moon center to ensure hollow effect
+            double distFromCenter = Math.sqrt((x - moonX) * (x - moonX) + (y - moonY) * (y - moonY)
+                    + (z - moonZ) * (z - moonZ));
+
+            // Only place particles on the surface (between radius 2.5 and 3)
+            if (distFromCenter >= 2.5 && distFromCenter <= 3) {
+                world.spawnParticles(ParticleTypes.END_ROD, x, y, z, 1, 0, 0, 0, 0);
+            }
         }
 
         // Stars on the ceiling (upper part of the sphere)
